@@ -14,6 +14,7 @@ from shapely import geometry as shgeo
 from shapely.geometry import LineString
 
 from ..utils import prng
+from ..utils.compute import get_compute_backend, parallel_map
 from ..utils.geometry import Point
 from ..utils.threading import check_stop_flag
 
@@ -27,6 +28,15 @@ def split_segment_even_n(a, b, segments: int, jitter_sigma: float = 0.0, random_
     """Split a segment into n even parts, optionally with jitter."""
     if segments <= 1:
         return []
+
+    backend = get_compute_backend()
+    if jitter_sigma == 0.0 and random_seed is None and backend not in {"cpu", "threaded"}:
+        from ..utils.webgpu import split_segment_webgpu
+
+        gpu_splits = split_segment_webgpu(a, b, segments)
+        if gpu_splits is not None:
+            return [shgeo.Point(point) for point in gpu_splits]
+
     line = shgeo.LineString((a, b))
 
     splits = np.array(range(1, segments)) / segments
@@ -37,7 +47,10 @@ def split_segment_even_n(a, b, segments: int, jitter_sigma: float = 0.0, random_
     # sort the splits in case a bad roll transposes any of them
     splits.sort()
 
-    return [line.interpolate(x, normalized=True) for x in splits]
+    if backend == "threaded" and len(splits) >= 256:
+        return parallel_map(lambda fraction: line.interpolate(float(fraction), normalized=True), splits)
+
+    return [line.interpolate(float(x), normalized=True) for x in splits]
 
 
 def split_segment_even_dist(a: Point, b: Point, max_length: float, jitter_sigma: float = 0.0, random_seed=None) -> typing.List[shgeo.Point]:

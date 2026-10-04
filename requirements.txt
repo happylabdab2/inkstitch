@@ -1,9 +1,9 @@
 pystitch
 
-# For macOS and Windows our installer bundles the version specified here
-# but some Linux distros package Ink/Stitch as depending on the inkex that's bundled with Inkscape.
-# So at least for releases we should use a tagged version here such as EXTENSIONS_AT_INKSCAPE_$version.
-inkex @ git+https://gitlab.com/inkscape/extensions.git@EXTENSIONS_AT_INKSCAPE_1.4.1
+# Use the published Inkex release instead of the GitLab extension branch.
+# The git-based source at EXTENSIONS_AT_INKSCAPE_1.4.1 resolves to malformed
+# dependency metadata in current pip packaging, which causes the install failure.
+inkex==1.4.1
 
 # for linux user it may be tricky to install wxPython from sources
 # prebuilt packages: https://wxpython.org/pages/downloads/index.html

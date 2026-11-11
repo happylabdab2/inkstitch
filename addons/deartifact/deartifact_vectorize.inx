@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+    <name>De-artifact &amp; Vectorize…</name>
+    <id>user.deartifact.vectorize</id>
+
+    <param name="tab" type="notebook">
+        <page name="restore" gui-text="Restoration">
+            <param name="profile" type="optiongroup" appearance="combo" gui-text="Restoration profile:"
+                   gui-description="Presets set tolerance, edge preservation, smoothing and island sensitivity. Choose Custom to use the values below.">
+                <option value="balanced">Balanced (recommended starting point)</option>
+                <option value="conservative">Conservative (preserve details)</option>
+                <option value="aggressive">Aggressive (simplify artwork)</option>
+                <option value="custom">Custom (use settings below)</option>
+            </param>
+            <label appearance="header">Custom settings</label>
+            <param name="tolerance" type="float" precision="1" min="1" max="40" appearance="full"
+                   gui-text="Perceptual colour tolerance (ΔE00):"
+                   gui-description="How different two neighbouring regions may be and still merge. Merging also depends on edge strength and region consistency, so this is not a plain colour threshold.">8.0</param>
+            <param name="edge_preservation" type="int" min="0" max="100" appearance="full"
+                   gui-text="Edge preservation (%):"
+                   gui-description="Higher keeps more genuine boundaries, thin lines and small distinct shapes; lower simplifies more.">75</param>
+            <param name="smooth_iterations" type="int" min="0" max="5"
+                   gui-text="Edge-aware smoothing passes:"
+                   gui-description="Bilateral + luma-guided chroma restoration passes. One extra pass is added automatically when 8x8 JPEG blocking is detected.">2</param>
+            <param name="superpixel_size" type="int" min="0" max="64"
+                   gui-text="Superpixel size (px, 0 = auto):">0</param>
+        </page>
+
+        <page name="colors" gui-text="Colours">
+            <param name="target_colors" type="int" min="0" max="256"
+                   gui-text="Target colour count (0 = automatic):"
+                   gui-description="Desired number of canonical palette colours. It is a target, not a hard limit: a clearly distinct colour covering a meaningful area is kept even if it exceeds the count. 0 lets the tolerance decide.">0</param>
+            <param name="protected_colors" type="string"
+                   gui-text="Protected / locked colours:"
+                   gui-description="Comma-separated #rrggbb values. Regions close to one of these get exactly that colour and are never absorbed as islands. Use for brand colours.">
+            </param>
+            <label>Colours are clustered per region (not per pixel) in CIELAB using CIEDE2000, so slightly different pixels in one shape get one colour while two separate shapes of nearly the same colour stay separate objects.</label>
+        </page>
+
+        <page name="islands" gui-text="Islands">
+            <param name="island_sensitivity" type="int" min="0" max="10" appearance="full"
+                   gui-text="Island removal sensitivity:"
+                   gui-description="Used in Custom profile. Higher absorbs more small specks into their surroundings.">4</param>
+            <param name="island_max_area" type="int" min="0" max="100000"
+                   gui-text="Max island area (px, 0 = auto):">0</param>
+            <param name="protect_holes" type="bool"
+                   gui-text="Preserve enclosed holes and small meaningful shapes"
+                   gui-description="Compact, clearly distinct shapes fully enclosed by one region (eyes, dots, letter counters) are kept even when small.">true</param>
+            <label>Each small component gets an artifact probability from its size, similarity to neighbours, boundary irregularity, whether it is an antialiasing blend, and edge strength. Artifacts are merged into the best neighbour; nothing is simply deleted.</label>
+        </page>
+
+        <page name="output" gui-text="Output">
+            <param name="output_mode" type="optiongroup" appearance="combo" gui-text="Create:">
+                <option value="vector">Vector paths</option>
+                <option value="bitmap">Cleaned bitmap (for Path ▸ Trace Bitmap)</option>
+                <option value="both">Both</option>
+            </param>
+            <param name="group_by_color" type="bool"
+                   gui-text="One compound path per colour"
+                   gui-description="Unchecked: one path per connected region (more objects, easier to edit individually).">true</param>
+            <param name="trace_tolerance" type="float" precision="2" min="0.1" max="5"
+                   gui-text="Curve fitting tolerance (px):">1.0</param>
+            <param name="corner_angle" type="float" precision="0" min="15" max="150"
+                   gui-text="Corner angle threshold (°):"
+                   gui-description="Turns sharper than this become corners; gentler turns become smooth curves.">55</param>
+            <param name="smoothness" type="float" precision="2" min="0" max="3"
+                   gui-text="Boundary smoothing:">1.0</param>
+            <param name="seam_stroke" type="float" precision="2" min="0" max="3"
+                   gui-text="Anti-seam stroke (px, 0 = none):"
+                   gui-description="Neighbouring shapes share identical boundaries, so there are no gaps; this small same-colour stroke only hides renderer antialiasing hairlines.">0.4</param>
+            <param name="original" type="optiongroup" appearance="combo" gui-text="Original image:">
+                <option value="hide">Hide</option>
+                <option value="keep">Keep visible</option>
+                <option value="delete">Delete</option>
+            </param>
+            <param name="max_megapixels" type="float" precision="1" min="0.1" max="25"
+                   gui-text="Max processing size (megapixels):"
+                   gui-description="Larger images are downsampled for processing; output is mapped back to the original size.">2.0</param>
+            <param name="alpha_threshold" type="int" min="0" max="255"
+                   gui-text="Transparency threshold (alpha):">128</param>
+            <param name="report" type="bool" gui-text="Show report">true</param>
+        </page>
+
+        <page name="about" gui-text="About">
+            <label appearance="header">Topology-aware de-artifacting for bitmap → SVG</label>
+            <label>1. Analysis: noise, 8x8 blocking, colour statistics.</label>
+            <label>2. Restoration: luma-guided chroma repair (undoes 4:2:0 bleed), bilateral filtering in CIELAB, extra smoothing where variance is high but edges are weak.</label>
+            <label>3. SLIC superpixels split into flat zones, so thin lines survive.</label>
+            <label>4. Region adjacency graph: hierarchical merging by CIEDE2000, boundary evidence and region consistency.</label>
+            <label>5. Antialias strips are split between their two parent colours; JPEG ringing halos are folded in.</label>
+            <label>6. Island absorption with topology protection.</label>
+            <label>7. Region-level palette with weighted-median canonical colours, then MRF boundary refinement.</label>
+            <label>8. Tracing: each shared boundary is fitted once (least-squares Béziers), so the output has no gaps or overlaps.</label>
+        </page>
+    </param>
+
+    <effect needs-live-preview="false">
+        <object-type>all</object-type>
+        <effects-menu>
+            <submenu name="Raster"/>
+        </effects-menu>
+    </effect>
+    <script>
+        <command location="inx" interpreter="python">deartifact_vectorize.py</command>
+    </script>
+</inkscape-extension>
